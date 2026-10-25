@@ -1,5 +1,6 @@
 package de.gregoire.teamrowingdisplay.spotify
 
+import android.os.SystemClock
 import de.gregoire.teamrowingdisplay.net.httpGet
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,6 +28,20 @@ data class PlaybackQueue(
     val upcoming: List<Track>,
 )
 
+data class PlaybackState(
+    val track: Track?,
+    val progressMs: Long,
+    val isPlaying: Boolean,
+    /** [SystemClock.elapsedRealtime] when the state was fetched, to extrapolate the position. */
+    val fetchedAtMs: Long,
+) {
+    /** The position at [nowMs] (elapsedRealtime), assuming playback continued since fetching. */
+    fun positionAt(nowMs: Long): Long {
+        val position = if (isPlaying) progressMs + (nowMs - fetchedAtMs) else progressMs
+        return track?.let { position.coerceAtMost(it.durationMs) } ?: position
+    }
+}
+
 data class Playlist(
     val id: String,
     val name: String,
@@ -44,6 +59,17 @@ class SpotifyApiException(
 class SpotifyApi(private val auth: SpotifyAuth) {
 
     private var userId: String? = null
+
+    /** The current track and position on whichever device is playing, or null if nothing is playing. */
+    suspend fun getPlaybackState(): PlaybackState? {
+        val json = get("/me/player/currently-playing") ?: return null
+        return PlaybackState(
+            track = json.optJSONObject("item")?.toTrack(),
+            progressMs = json.optLong("progress_ms"),
+            isPlaying = json.optBoolean("is_playing"),
+            fetchedAtMs = SystemClock.elapsedRealtime(),
+        )
+    }
 
     /** The current track and the upcoming tracks, on whichever device is playing. */
     suspend fun getQueue(): PlaybackQueue {

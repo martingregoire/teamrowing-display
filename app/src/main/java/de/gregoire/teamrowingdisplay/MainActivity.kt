@@ -2,6 +2,7 @@ package de.gregoire.teamrowingdisplay
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,9 +11,13 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -20,7 +25,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,9 +43,10 @@ import androidx.lifecycle.repeatOnLifecycle
 import de.gregoire.teamrowingdisplay.bpm.BpmEntry
 import de.gregoire.teamrowingdisplay.bpm.BpmSource
 import de.gregoire.teamrowingdisplay.bpm.formatBpm
-import de.gregoire.teamrowingdisplay.spotify.PlaybackQueue
+import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.Track
 import de.gregoire.teamrowingdisplay.ui.theme.TeamrowingDisplayTheme
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -65,12 +73,13 @@ class MainActivity : ComponentActivity() {
                         val lifecycleOwner = LocalLifecycleOwner.current
                         LaunchedEffect(lifecycleOwner) {
                             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                                viewModel.pollQueue()
+                                viewModel.pollPlayback()
                             }
                         }
                         val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
                         QueueScreen(
-                            queue = state.queue,
+                            playback = state.playback,
+                            upcoming = state.upcoming,
                             bpmEntries = bpmEntries,
                             error = state.error,
                             onPrepareSessions = { showSessions = true },
@@ -126,7 +135,8 @@ fun LoginScreen(error: String?, onLogin: () -> Unit, modifier: Modifier = Modifi
 /** Temporary screen showing the raw queue data, to verify the Spotify connection. */
 @Composable
 fun QueueScreen(
-    queue: PlaybackQueue?,
+    playback: PlaybackState?,
+    upcoming: List<Track>,
     bpmEntries: Map<String, BpmEntry>,
     error: String?,
     onPrepareSessions: () -> Unit,
@@ -139,10 +149,15 @@ fun QueueScreen(
             .padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(R.string.now_playing), style = MaterialTheme.typography.labelLarge)
-        val current = queue?.currentlyPlaying
+        val current = playback?.track
+        val nowPlaying = stringResource(R.string.now_playing)
+        Text(
+            if (playback?.isPlaying == false) "$nowPlaying · ${stringResource(R.string.paused)}" else nowPlaying,
+            style = MaterialTheme.typography.labelLarge,
+        )
         if (current != null) {
             TrackText(current, bpmEntries[current.uri], MaterialTheme.typography.headlineLarge)
+            PlaybackProgress(playback, current)
         } else {
             Text(stringResource(R.string.nothing_playing), style = MaterialTheme.typography.headlineLarge)
         }
@@ -152,7 +167,9 @@ fun QueueScreen(
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.padding(top = 24.dp),
         )
-        queue?.upcoming?.take(3)?.forEach { TrackText(it, bpmEntries[it.uri], MaterialTheme.typography.titleLarge) }
+        upcoming.take(3).forEach {
+            TrackText(it, bpmEntries[it.uri], MaterialTheme.typography.titleLarge, showDuration = true)
+        }
 
         error?.let { ErrorText(it) }
         Row(modifier = Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -167,15 +184,45 @@ fun QueueScreen(
 }
 
 @Composable
-private fun TrackText(track: Track, bpmEntry: BpmEntry?, style: TextStyle) {
-    val title = "${track.artists} – ${track.title}"
-    if (bpmEntry?.hidden == true) {
-        Text(title, style = style)
-    } else {
-        val bpm = bpmEntry?.bpm?.let(::formatBpm) ?: "–"
-        Text("[$bpm] $title", style = style)
+private fun TrackText(track: Track, bpmEntry: BpmEntry?, style: TextStyle, showDuration: Boolean = false) {
+    var text = "${track.artists} – ${track.title}"
+    if (bpmEntry?.hidden != true) text = "[${bpmEntry?.bpm?.let(::formatBpm) ?: "–"}] $text"
+    if (showDuration) text += " (${formatDuration(track.durationMs)})"
+    Text(text, style = style)
+}
+
+/** Progress bar with position and duration; the position advances locally between polls. */
+@Composable
+private fun PlaybackProgress(playback: PlaybackState, track: Track) {
+    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(playback) {
+        while (playback.isPlaying) {
+            now = SystemClock.elapsedRealtime()
+            delay(PROGRESS_TICK_MS)
+        }
+    }
+    val position = playback.positionAt(now)
+
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LinearProgressIndicator(
+            progress = { if (track.durationMs > 0) position.toFloat() / track.durationMs else 0f },
+            modifier = Modifier.fillMaxWidth().height(8.dp),
+        )
+        Row {
+            Text(formatDuration(position), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
+            Text(formatDuration(track.durationMs), style = MaterialTheme.typography.titleMedium)
+        }
     }
 }
+
+/** Formats milliseconds as m:ss. */
+private fun formatDuration(ms: Long): String {
+    val seconds = ms / 1000
+    return "%d:%02d".format(seconds / 60, seconds % 60)
+}
+
+private const val PROGRESS_TICK_MS = 250L
 
 @Composable
 fun ErrorText(message: String) {
@@ -187,12 +234,15 @@ fun ErrorText(message: String) {
 fun QueueScreenPreview() {
     TeamrowingDisplayTheme {
         QueueScreen(
-            queue = PlaybackQueue(
-                currentlyPlaying = Track("spotify:track:1", "Eye of the Tiger", "Survivor", 245_000),
-                upcoming = listOf(
-                    Track("spotify:track:2", "Lose Yourself", "Eminem", 326_000),
-                    Track("spotify:track:3", "Can't Hold Us", "Macklemore & Ryan Lewis", 258_000),
-                ),
+            playback = PlaybackState(
+                track = Track("spotify:track:1", "Eye of the Tiger", "Survivor", 245_000),
+                progressMs = 83_000,
+                isPlaying = false,
+                fetchedAtMs = 0,
+            ),
+            upcoming = listOf(
+                Track("spotify:track:2", "Lose Yourself", "Eminem", 326_000),
+                Track("spotify:track:3", "Can't Hold Us", "Macklemore & Ryan Lewis", 258_000),
             ),
             bpmEntries = mapOf(
                 "spotify:track:1" to BpmEntry(109.0, BpmSource.RECCOBEATS, manualBpm = 27.25),

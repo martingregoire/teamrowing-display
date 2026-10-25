@@ -6,6 +6,7 @@
     <string name="now_playing">Now playing</string>
     <string name="up_next">Up next</string>
     <string name="nothing_playing">Nothing is playing</string>
+    <string name="paused">Paused</string>
     <string name="back">Back</string>
 
     <string name="prepare_sessions">Prepare sessions</string>
