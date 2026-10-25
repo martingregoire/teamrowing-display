@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Teamrowing Display</string>
+    <string name="login_hint">Log in with the Spotify account that plays the music.</string>
+    <string name="login_button">Log in with Spotify</string>
+    <string name="logout_button">Log out</string>
+    <string name="now_playing">Now playing</string>
+    <string name="up_next">Up next</string>
+    <string name="nothing_playing">Nothing is playing</string>
 </resources>
