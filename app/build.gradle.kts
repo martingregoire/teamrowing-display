@@ -7,6 +7,10 @@ plugins {
 val spotifyClientId = providers.gradleProperty("teamrowingDisplay.spotifyClientId").orNull
     ?: error("Missing teamrowingDisplay.spotifyClientId in ~/.gradle/gradle.properties")
 
+// The release signing key is kept out of the repository too; without it, release builds are unsigned.
+val releaseKeystore = providers.gradleProperty("teamrowingDisplay.releaseKeystore").orNull
+    ?.replaceFirst("~", System.getProperty("user.home"))
+
 android {
     namespace = "de.gregoire.teamrowingdisplay"
     compileSdk {
@@ -26,11 +30,25 @@ android {
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"teamrowing-display://callback\"")
     }
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.gradleProperty("teamrowingDisplay.releaseKeystorePassword").get()
+                keyAlias = providers.gradleProperty("teamrowingDisplay.releaseKeyAlias").get()
+                // PKCS12 keystores, keytool's default, use the same password for the key
+                keyPassword = storePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
+            // Optimizes the whole app; limiting it to the libraries with packageScope made R8 produce
+            // classes that fail to load (IllegalAccessError in kotlin.collections at startup)
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
     }
