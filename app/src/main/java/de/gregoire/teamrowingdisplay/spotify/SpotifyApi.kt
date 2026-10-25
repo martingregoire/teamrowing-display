@@ -32,6 +32,8 @@ data class PlaybackState(
     val track: Track?,
     val progressMs: Long,
     val isPlaying: Boolean,
+    /** What is being played, e.g. `spotify:playlist:…`, or null if Spotify doesn't say. */
+    val contextUri: String? = null,
     /** [SystemClock.elapsedRealtime] when the state was fetched, to extrapolate the position. */
     val fetchedAtMs: Long,
 ) {
@@ -67,6 +69,7 @@ class SpotifyApi(private val auth: SpotifyAuth) {
             track = json.optJSONObject("item")?.toTrack(),
             progressMs = json.optLong("progress_ms"),
             isPlaying = json.optBoolean("is_playing"),
+            contextUri = json.optJSONObject("context")?.optString("uri")?.takeIf { it.isNotEmpty() },
             fetchedAtMs = SystemClock.elapsedRealtime(),
         )
     }

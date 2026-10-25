@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         Screen.DISPLAY -> DisplayScreen(
                             playback = state.playback,
-                            next = state.upcoming.firstOrNull(),
+                            next = state.next,
                             bpmEntries = bpmEntries,
                             settings = displaySettings,
                             error = state.error,
@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
                         Screen.SETTINGS -> DisplaySettingsScreen(
                             settings = displaySettings,
                             playback = state.playback,
-                            next = state.upcoming.firstOrNull(),
+                            next = state.next,
                             bpmEntries = bpmEntries,
                             onChange = viewModel::updateDisplaySettings,
                             onBack = { screen = Screen.DISPLAY },
