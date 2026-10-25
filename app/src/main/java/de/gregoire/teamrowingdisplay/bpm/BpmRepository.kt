@@ -16,7 +16,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import kotlin.math.roundToLong
 
 /**
  * BPM per track URI: detected values and the trainer's corrections, stored as a JSON file and
@@ -63,15 +62,13 @@ class BpmRepository(context: Context, private val lookup: BpmLookup) : BpmSyncSt
     }
 
     /** Sets the trainer's value; null, or the detected value itself, removes the correction. */
-    suspend fun setManualBpm(uri: String, bpm: Double?) = edit(uri) { entry ->
-        entry.copy(manualBpm = bpm?.takeIf { it != entry.detectedBpm })
-    }
+    suspend fun setManualBpm(uri: String, bpm: Double?) = edit(uri) { it.withManualBpm(bpm) }
 
     /** Multiplies the current value and rounds it, e.g. by 2 or 0.5 to fix double or half tempo. */
-    suspend fun multiplyBpm(uri: String, factor: Double) = adjustBpm(uri) { it * factor }
+    suspend fun multiplyBpm(uri: String, factor: Double) = edit(uri) { entry -> entry.adjusted { it * factor } }
 
     /** Adds to the current value and rounds it, e.g. +1 or -1 for fine-tuning. */
-    suspend fun addBpm(uri: String, delta: Double) = adjustBpm(uri) { it + delta }
+    suspend fun addBpm(uri: String, delta: Double) = edit(uri) { entry -> entry.adjusted { it + delta } }
 
     suspend fun setHidden(uri: String, hidden: Boolean) = edit(uri) { it.copy(hidden = hidden) }
 
@@ -82,12 +79,6 @@ class BpmRepository(context: Context, private val lookup: BpmLookup) : BpmSyncSt
 
     override suspend fun merge(incoming: Map<String, BpmEntry>) = update(fromSync = true) { entries ->
         entries + incoming.map { (uri, entry) -> uri to (entries[uri]?.mergedWith(entry) ?: entry) }
-    }
-
-    private suspend fun adjustBpm(uri: String, adjust: (Double) -> Double) = edit(uri) { entry ->
-        val bpm = entry.bpm ?: return@edit entry
-        val adjusted = adjust(bpm).roundToLong().coerceAtLeast(1).toDouble()
-        entry.copy(manualBpm = adjusted.takeIf { it != entry.detectedBpm })
     }
 
     /** Applies a change by the trainer, stamping it with the time for merging with the other app. */
