@@ -4,7 +4,7 @@
     <string name="login_button">Log in with Spotify</string>
     <string name="logout_button">Log out</string>
     <string name="now_playing">Now playing</string>
-    <string name="up_next">Up next</string>
+    <string name="up_next">Next</string>
     <string name="nothing_playing">Nothing is playing</string>
     <string name="paused">Paused</string>
     <string name="back">Back</string>
