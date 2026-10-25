@@ -42,6 +42,7 @@ import de.gregoire.teamrowingdisplay.bpm.BpmSource
 import de.gregoire.teamrowingdisplay.bpm.formatBpm
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.Track
+import de.gregoire.teamrowingdisplay.sync.SyncStatus
 import kotlinx.coroutines.delay
 
 /**
@@ -54,6 +55,7 @@ fun DisplayScreen(
     next: Track?,
     bpmEntries: Map<String, BpmEntry>,
     settings: DisplaySettings,
+    syncStatus: SyncStatus,
     error: String?,
     onPrepareSessions: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -93,7 +95,13 @@ fun DisplayScreen(
                 Row(
                     modifier = Modifier.align(Alignment.BottomEnd),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Text(
+                        stringResource(syncStatus.label),
+                        color = colors.secondary,
+                        modifier = Modifier.padding(end = 16.dp),
+                    )
                     Button(onClick = onPrepareSessions) { Text(stringResource(R.string.prepare_sessions)) }
                     Button(onClick = onOpenSettings) { Text(stringResource(R.string.display_settings)) }
                     TextButton(onClick = onLogout) {
@@ -104,6 +112,14 @@ fun DisplayScreen(
         }
     }
 }
+
+private val SyncStatus.label: Int
+    get() = when (this) {
+        SyncStatus.NO_PERMISSION -> R.string.sync_no_permission
+        SyncStatus.BLUETOOTH_OFF -> R.string.sync_bluetooth_off
+        SyncStatus.WAITING -> R.string.sync_waiting
+        SyncStatus.CONNECTED -> R.string.sync_connected
+    }
 
 /** The display itself, without controls; also used as the live preview in the settings. */
 @Composable

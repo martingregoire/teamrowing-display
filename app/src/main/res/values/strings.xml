@@ -28,6 +28,10 @@
     <string name="no_tempo">No tempo</string>
 
     <string name="display_settings">Display settings</string>
+    <string name="sync_no_permission">Remote sync: no Bluetooth permission</string>
+    <string name="sync_bluetooth_off">Remote sync: Bluetooth is off</string>
+    <string name="sync_waiting">Remote: not connected</string>
+    <string name="sync_connected">Remote: connected</string>
     <string name="settings_section_show">Show</string>
     <string name="show_next">Next track</string>
     <string name="show_artist">Artist</string>

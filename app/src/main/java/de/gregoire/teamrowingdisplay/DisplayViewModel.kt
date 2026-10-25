@@ -13,6 +13,7 @@ import de.gregoire.teamrowingdisplay.bpm.BpmEntry
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.SpotifyApiException
 import de.gregoire.teamrowingdisplay.spotify.Track
+import de.gregoire.teamrowingdisplay.sync.SyncStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -53,6 +54,8 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
     val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmRepository.entries
 
     val displaySettings: StateFlow<DisplaySettings> = app.displaySettingsStore.settings
+
+    val syncStatus: StateFlow<SyncStatus> = app.syncServer.status
 
     fun updateDisplaySettings(transform: (DisplaySettings) -> DisplaySettings) {
         app.displaySettingsStore.update(transform)

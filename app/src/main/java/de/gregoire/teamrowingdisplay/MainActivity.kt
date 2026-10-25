@@ -1,11 +1,14 @@
 package de.gregoire.teamrowingdisplay
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
@@ -33,8 +36,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import de.gregoire.teamrowingdisplay.sync.hasBluetoothPermission
 import de.gregoire.teamrowingdisplay.ui.theme.TeamrowingDisplayTheme
+import kotlinx.coroutines.launch
 
 private enum class Screen { DISPLAY, SESSIONS, SETTINGS }
 
@@ -43,12 +49,16 @@ class MainActivity : ComponentActivity() {
     private val viewModel: DisplayViewModel by viewModels()
     private val sessionViewModel: SessionViewModel by viewModels()
 
+    // The sync server checks the permission itself and starts once it's granted
+    private val requestBluetoothPermission = registerForActivityResult(RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enterTabletMode()
         // Only on first creation, so a configuration change doesn't replay the login redirect
         if (savedInstanceState == null) handleIntent(intent)
+        startBluetoothSync(askForPermission = savedInstanceState == null)
         setContent {
             TeamrowingDisplayTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -74,12 +84,14 @@ class MainActivity : ComponentActivity() {
                     }
                     val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
                     val displaySettings by viewModel.displaySettings.collectAsStateWithLifecycle()
+                    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
                     when (screen) {
                         Screen.DISPLAY -> DisplayScreen(
                             playback = state.playback,
                             next = state.next,
                             bpmEntries = bpmEntries,
                             settings = displaySettings,
+                            syncStatus = syncStatus,
                             error = state.error,
                             onPrepareSessions = { screen = Screen.SESSIONS },
                             onOpenSettings = { screen = Screen.SETTINGS },
@@ -115,6 +127,17 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    /** Syncs BPM values with the remote app over Bluetooth while the app is visible. */
+    private fun startBluetoothSync(askForPermission: Boolean) {
+        if (askForPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasBluetoothPermission(this)) {
+            requestBluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        val syncServer = (application as TeamrowingApp).syncServer
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { syncServer.run() }
         }
     }
 

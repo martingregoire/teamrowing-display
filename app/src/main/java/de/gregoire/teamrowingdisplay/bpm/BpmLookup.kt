@@ -8,11 +8,6 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 
-enum class BpmSource(val label: String) {
-    RECCOBEATS("ReccoBeats"),
-    DEEZER("Deezer"),
-}
-
 data class DetectedBpm(val bpm: Double, val source: BpmSource)
 
 class BpmLookupResult(

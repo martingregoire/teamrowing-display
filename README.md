@@ -18,17 +18,33 @@ reading it from the Spotify Web API with the same Spotify account.
 - **Display settings:** shown elements, tempo size, current/next split, color scheme and accent
   color, with a live preview.
 - **Tablet mode:** the screen stays on and the system bars are hidden while the app is open.
+- **Sync with the remote app:** the BPM values are synced over Bluetooth with
+  [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the trainer's phone,
+  which shows each track's tempo. The status is shown with the controls.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
-BPM values and corrections are stored per Spotify track on the device, so a corrected song keeps
-its tempo in every session. They are not synced between devices.
+BPM values and corrections are stored per Spotify track, so a corrected song keeps its tempo in
+every session. They are stored on the tablet and, once synced, on the phone, so either device can
+restore the other's data.
+
+## Bluetooth sync
+
+- Pair the tablet and the phone once in Android's Bluetooth settings, and allow the "Nearby
+  devices" permission when the apps ask for it.
+- While the display app is open, it accepts the remote app's connection (RFCOMM). On connecting,
+  both apps send all their BPM entries, then each change as it happens, one JSON message per line.
+- Entries are merged per track: a detected BPM is taken from whichever device has one, and the
+  trainer's correction and "No tempo" from the more recently edited one.
+- The protocol and the BPM entry format (`sync/BpmSyncSession.kt`, `bpm/BpmEntry.kt`) are kept
+  identical in both apps.
 
 ## Requirements
 
 - A Spotify Premium account, and a Spotify app registered in the
   [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) (Web API, redirect URI
   `teamrowing-display://callback`). In Development Mode, up to 5 Spotify users can be added there.
-- An Android tablet with Android 8.0 (API 26) or newer.
+- An Android tablet with Android 8.0 (API 26) or newer, with Bluetooth for the sync with the
+  remote app.
 - Turn off Spotify's *Autoplay* on the phone that plays the music (Settings → Playback), so no
   unrelated music plays after a session.
 
