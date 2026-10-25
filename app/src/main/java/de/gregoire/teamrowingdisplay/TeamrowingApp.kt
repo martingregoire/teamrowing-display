@@ -11,4 +11,5 @@ class TeamrowingApp : Application() {
     val spotifyAuth by lazy { SpotifyAuth(this) }
     val spotifyApi by lazy { SpotifyApi(spotifyAuth) }
     val bpmRepository by lazy { BpmRepository(this, BpmLookup()) }
+    val displaySettingsStore by lazy { DisplaySettingsStore(this) }
 }

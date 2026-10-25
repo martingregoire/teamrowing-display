@@ -36,6 +36,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import de.gregoire.teamrowingdisplay.ui.theme.TeamrowingDisplayTheme
 
+private enum class Screen { DISPLAY, SESSIONS, SETTINGS }
+
 class MainActivity : ComponentActivity() {
 
     private val viewModel: DisplayViewModel by viewModels()
@@ -51,34 +53,51 @@ class MainActivity : ComponentActivity() {
             TeamrowingDisplayTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val state = viewModel.state
-                    var showSessions by rememberSaveable { mutableStateOf(false) }
-                    if (state.loggedIn && showSessions) {
-                        SessionsScreen(
-                            viewModel = sessionViewModel,
-                            onClose = { showSessions = false },
+                    var screen by rememberSaveable { mutableStateOf(Screen.DISPLAY) }
+                    if (!state.loggedIn) {
+                        LoginScreen(
+                            error = state.error,
+                            onLogin = ::startLogin,
                             modifier = Modifier.padding(innerPadding),
                         )
-                    } else if (state.loggedIn) {
+                        return@Scaffold
+                    }
+
+                    // The settings preview shows the live playback too
+                    if (screen != Screen.SESSIONS) {
                         val lifecycleOwner = LocalLifecycleOwner.current
                         LaunchedEffect(lifecycleOwner) {
                             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                                 viewModel.pollPlayback()
                             }
                         }
-                        val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
-                        DisplayScreen(
+                    }
+                    val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
+                    val displaySettings by viewModel.displaySettings.collectAsStateWithLifecycle()
+                    when (screen) {
+                        Screen.DISPLAY -> DisplayScreen(
                             playback = state.playback,
                             next = state.upcoming.firstOrNull(),
                             bpmEntries = bpmEntries,
+                            settings = displaySettings,
                             error = state.error,
-                            onPrepareSessions = { showSessions = true },
+                            onPrepareSessions = { screen = Screen.SESSIONS },
+                            onOpenSettings = { screen = Screen.SETTINGS },
                             onLogout = viewModel::logout,
                             contentPadding = innerPadding,
                         )
-                    } else {
-                        LoginScreen(
-                            error = state.error,
-                            onLogin = ::startLogin,
+                        Screen.SESSIONS -> SessionsScreen(
+                            viewModel = sessionViewModel,
+                            onClose = { screen = Screen.DISPLAY },
+                            modifier = Modifier.padding(innerPadding),
+                        )
+                        Screen.SETTINGS -> DisplaySettingsScreen(
+                            settings = displaySettings,
+                            playback = state.playback,
+                            next = state.upcoming.firstOrNull(),
+                            bpmEntries = bpmEntries,
+                            onChange = viewModel::updateDisplaySettings,
+                            onBack = { screen = Screen.DISPLAY },
                             modifier = Modifier.padding(innerPadding),
                         )
                     }

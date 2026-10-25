@@ -26,4 +26,27 @@
     <string name="bpm_edit_hint">Leave empty to use the detected value.</string>
     <string name="reset">Reset</string>
     <string name="no_tempo">No tempo</string>
+
+    <string name="display_settings">Display settings</string>
+    <string name="settings_section_show">Show</string>
+    <string name="show_next">Next track</string>
+    <string name="show_artist">Artist</string>
+    <string name="show_progress_bar">Progress bar</string>
+    <string name="show_times">Position and duration</string>
+    <string name="show_next_duration">Duration of the next track</string>
+    <string name="show_tempo_label">Label above the tempo</string>
+    <string name="tempo_label">Label text</string>
+    <string name="settings_section_sizes">Sizes</string>
+    <string name="tempo_size">Tempo size</string>
+    <string name="size_small">Small</string>
+    <string name="size_medium">Medium</string>
+    <string name="size_large">Large</string>
+    <string name="track_split">Current / next track</string>
+    <string name="settings_section_colors">Colors</string>
+    <string name="color_scheme">Color scheme</string>
+    <string name="color_scheme_dark">Dark</string>
+    <string name="color_scheme_light">Light</string>
+    <string name="color_scheme_high_contrast">Max. contrast</string>
+    <string name="accent_color">Accent color</string>
+    <string name="reset_display_settings">Reset to defaults</string>
 </resources>

@@ -37,6 +37,12 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
 
     val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmRepository.entries
 
+    val displaySettings: StateFlow<DisplaySettings> = app.displaySettingsStore.settings
+
+    fun updateDisplaySettings(transform: (DisplaySettings) -> DisplaySettings) {
+        app.displaySettingsStore.update(transform)
+    }
+
     fun createAuthorizeUri(): Uri = auth.createAuthorizeUri()
 
     fun handleRedirect(uri: Uri) {
