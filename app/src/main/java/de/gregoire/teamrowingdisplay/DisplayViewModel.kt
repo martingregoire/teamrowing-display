@@ -13,10 +13,13 @@ import de.gregoire.teamrowingdisplay.bpm.BpmEntry
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.SpotifyApiException
 import de.gregoire.teamrowingdisplay.spotify.Track
+import de.gregoire.teamrowingdisplay.sync.PlaybackUpdate
 import de.gregoire.teamrowingdisplay.sync.SyncStatus
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import java.io.IOException
 
@@ -50,6 +53,17 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
 
     private var sessionPlaylist: SessionPlaylist? = null
     private var lastContextUri: String? = null
+    private val wakeUp = Channel<Unit>(Channel.CONFLATED)
+
+    init {
+        // Shows the remote app's playback changes instantly, and wakes the polling to fetch the queue
+        viewModelScope.launch {
+            app.syncServer.remotePlayback.filterNotNull().collect { update ->
+                showPlayback(update.toPlaybackState())
+                wakeUp.trySend(Unit)
+            }
+        }
+    }
 
     val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmRepository.entries
 
@@ -75,46 +89,48 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Polls the playback state until the calling coroutine is cancelled, i.e. while the screen is visible.
-     * The queue is only fetched when the track changes, and every [QUEUE_REFRESH_MS] to catch manual changes.
+     * Polls until the calling coroutine is cancelled, i.e. while the screen is visible. While the remote
+     * app is connected, it reports playback changes instantly over Bluetooth, and only the queue is
+     * fetched; otherwise the playback state is polled too. The queue is fetched when the track changes,
+     * and every [QUEUE_REFRESH_MS] to catch manual changes.
      */
     suspend fun pollPlayback() {
         var queueFetchedAt = 0L
+        var queueTrackUri: String? = null
+        var staleQueueAttempts = 0
         while (true) {
             val delayMs = try {
-                val playback = api.getPlaybackState()
+                val remoteConnected = app.syncServer.remotePlayback.value != null
+                val playback = if (remoteConnected) state.playback else api.getPlaybackState().also(::showPlayback)
                 val track = playback?.track
-                val trackChanged = track?.uri != state.playback?.track?.uri
-
-                // Show the new track right away, advancing the known queue if it was next
-                val upcoming = state.upcoming
-                state = state.copy(
-                    playback = playback,
-                    upcoming = when {
-                        track == null -> emptyList()
-                        trackChanged && upcoming.firstOrNull()?.uri == track.uri -> upcoming.drop(1)
-                        else -> upcoming
-                    },
-                    error = null,
-                )
 
                 updateSessionPlaylist(playback?.contextUri)
                 state = state.copy(sessionTrackUris = sessionPlaylist?.trackUris)
 
                 val now = SystemClock.elapsedRealtime()
-                if (track != null && (trackChanged || now - queueFetchedAt >= QUEUE_REFRESH_MS)) {
-                    // Fetch first: state.copy(upcoming = api.getQueue().upcoming) would copy the state from
-                    // before the request and undo changes made meanwhile, such as a logout
-                    val upcoming = api.getQueue().upcoming
-                    state = state.copy(upcoming = upcoming)
-                    queueFetchedAt = now
+                var queueStale = false
+                if (track != null && (track.uri != queueTrackUri || now - queueFetchedAt >= QUEUE_REFRESH_MS)) {
+                    val queue = api.getQueue()
+                    // Right after a track change, Spotify may still report the queue of the previous track
+                    if (queue.currentlyPlaying?.uri == track.uri || ++staleQueueAttempts > MAX_STALE_QUEUE_ATTEMPTS) {
+                        state = state.copy(upcoming = queue.upcoming)
+                        queueTrackUri = track.uri
+                        queueFetchedAt = now
+                        staleQueueAttempts = 0
+                    } else {
+                        queueStale = true
+                    }
                 }
 
                 // Tracks the trainer didn't prepare are looked up on the fly, without delaying the polling
                 val tracks = listOfNotNull(track) + state.upcoming.filter(state::isInSession).take(BPM_LOOKAHEAD)
                 viewModelScope.launch { bpmRepository.lookUpMissing(tracks) }
 
-                nextPollDelay(playback)
+                when {
+                    queueStale -> STALE_QUEUE_RETRY_MS
+                    remoteConnected -> POLL_INTERVAL_MS
+                    else -> nextPollDelay(playback)
+                }
             } catch (e: SpotifyApiException) {
                 state = state.copy(error = e.message)
                 e.retryAfterSeconds?.times(1000) ?: POLL_INTERVAL_MS
@@ -126,8 +142,40 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
                 state = state.copy(error = e.message)
                 POLL_INTERVAL_MS
             }
-            delay(delayMs)
+            // A playback update from the remote app ends the wait early
+            withTimeoutOrNull(delayMs) { wakeUp.receive() }
         }
+    }
+
+    /** Shows a new playback state right away, advancing the known queue if the new track was next. */
+    private fun showPlayback(playback: PlaybackState?) {
+        val track = playback?.track
+        val trackChanged = track?.uri != state.playback?.track?.uri
+        val upcoming = state.upcoming
+        state = state.copy(
+            playback = playback,
+            upcoming = when {
+                track == null -> emptyList()
+                trackChanged && upcoming.firstOrNull()?.uri == track.uri -> upcoming.drop(1)
+                else -> upcoming
+            },
+            error = null,
+        )
+    }
+
+    /** The remote app's playback state; the track's ISRC, used for BPM lookups, comes from the queue. */
+    private fun PlaybackUpdate.toPlaybackState(): PlaybackState {
+        val track = trackUri?.let { uri ->
+            val queued = state.upcoming.firstOrNull { it.uri == uri } ?: state.playback?.track?.takeIf { it.uri == uri }
+            Track(uri = uri, title = title, artists = artists, durationMs = durationMs, isrc = queued?.isrc)
+        }
+        return PlaybackState(
+            track = track,
+            progressMs = positionMs,
+            isPlaying = !isPaused,
+            contextUri = contextUri,
+            fetchedAtMs = SystemClock.elapsedRealtime(),
+        )
     }
 
     /**
@@ -177,6 +225,8 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
         const val MIN_POLL_INTERVAL_MS = 250L
         const val TRACK_END_MARGIN_MS = 200L
         const val QUEUE_REFRESH_MS = 15_000L
+        const val STALE_QUEUE_RETRY_MS = 500L
+        const val MAX_STALE_QUEUE_ATTEMPTS = 6
         const val BPM_LOOKAHEAD = 5
         const val TAG = "DisplayViewModel"
         const val PLAYLIST_URI_PREFIX = "spotify:playlist:"

@@ -20,7 +20,9 @@ reading it from the Spotify Web API with the same Spotify account.
 - **Tablet mode:** the screen stays on and the system bars are hidden while the app is open.
 - **Sync with the remote app:** the BPM values are synced over Bluetooth with
   [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the trainer's phone,
-  which shows each track's tempo. The status is shown with the controls.
+  which shows each track's tempo. While it's connected, it also reports track changes, pause and
+  seeking instantly, so the display doesn't have to wait for its next poll. The status is shown
+  with the controls.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
 BPM values and corrections are stored per Spotify track, so a corrected song keeps its tempo in
@@ -33,9 +35,13 @@ restore the other's data.
   devices" permission when the apps ask for it.
 - While the display app is open, it accepts the remote app's connection (RFCOMM). On connecting,
   both apps send all their BPM entries, then each change as it happens, one JSON message per line.
+- The remote app also sends its playback state (track, position, play/pause, playlist) on every
+  change. While it's connected, the display app takes the current track from it and only fetches
+  the queue from the Web API, retrying shortly while Spotify still reports the previous track's
+  queue. Without the remote app, it polls the playback state as before.
 - Entries are merged per track: a detected BPM is taken from whichever device has one, and the
   trainer's correction and "No tempo" from the more recently edited one.
-- The protocol and the BPM entry format (`sync/BpmSyncSession.kt`, `bpm/BpmEntry.kt`) are kept
+- The protocol and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept
   identical in both apps.
 
 ## Requirements

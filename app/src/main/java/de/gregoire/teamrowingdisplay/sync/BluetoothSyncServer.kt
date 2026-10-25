@@ -11,9 +11,11 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -36,6 +38,19 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
     private val _status = MutableStateFlow(SyncStatus.WAITING)
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
+    private val _remotePlayback = MutableStateFlow<PlaybackUpdate?>(null)
+
+    /** The playback state last sent by the connected remote app, or null if none is connected. */
+    val remotePlayback: StateFlow<PlaybackUpdate?> = _remotePlayback.asStateFlow()
+
+    private val playbackPeer = object : PlaybackSyncPeer {
+        override val outgoing: Flow<PlaybackUpdate> = emptyFlow()
+
+        override fun received(update: PlaybackUpdate) {
+            _remotePlayback.value = update
+        }
+    }
+
     /** Serves until cancelled, e.g. while the app is visible; waits while Bluetooth is off or not permitted. */
     suspend fun run() = withContext(Dispatchers.IO) {
         while (true) {
@@ -56,8 +71,8 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
     @SuppressLint("MissingPermission") // Checked by hasBluetoothPermission() before
     private suspend fun serve(adapter: BluetoothAdapter) = coroutineScope {
         val serverSocket = adapter.listenUsingRfcommWithServiceRecord(
-            BpmSyncProtocol.SERVICE_NAME,
-            BpmSyncProtocol.SERVICE_UUID,
+            SyncProtocol.SERVICE_NAME,
+            SyncProtocol.SERVICE_UUID,
         )
         launch { closeOnCancellation(serverSocket) }
         while (true) {
@@ -66,10 +81,12 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
             _status.value = SyncStatus.CONNECTED
             Log.i(TAG, "Remote connected")
             try {
-                BpmSyncSession(socket, store).run()
+                SyncSession(socket, store, playbackPeer).run()
                 Log.i(TAG, "Remote disconnected")
             } catch (e: IOException) {
                 Log.i(TAG, "Remote connection lost", e)
+            } finally {
+                _remotePlayback.value = null
             }
         }
     }
