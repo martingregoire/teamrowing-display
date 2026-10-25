@@ -7,11 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.gregoire.teamrowingdisplay.bpm.BpmEntry
 import de.gregoire.teamrowingdisplay.spotify.PlaybackQueue
-import de.gregoire.teamrowingdisplay.spotify.SpotifyApi
 import de.gregoire.teamrowingdisplay.spotify.SpotifyApiException
-import de.gregoire.teamrowingdisplay.spotify.SpotifyAuth
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONException
 import java.io.IOException
@@ -24,11 +24,15 @@ data class DisplayState(
 
 class DisplayViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val auth = SpotifyAuth(application)
-    private val api = SpotifyApi(auth)
+    private val app = application as TeamrowingApp
+    private val auth = app.spotifyAuth
+    private val api = app.spotifyApi
+    private val bpmRepository = app.bpmRepository
 
     var state by mutableStateOf(DisplayState(loggedIn = auth.isLoggedIn))
         private set
+
+    val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmRepository.entries
 
     fun createAuthorizeUri(): Uri = auth.createAuthorizeUri()
 
@@ -47,7 +51,10 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
     suspend fun pollQueue() {
         while (true) {
             val delayMs = try {
-                state = state.copy(queue = api.getQueue(), error = null)
+                val queue = api.getQueue()
+                state = state.copy(queue = queue, error = null)
+                // Tracks the trainer didn't prepare are looked up on the fly
+                bpmRepository.lookUpMissing(listOfNotNull(queue.currentlyPlaying) + queue.upcoming.take(BPM_LOOKAHEAD))
                 POLL_INTERVAL_MS
             } catch (e: SpotifyApiException) {
                 state = state.copy(error = e.message)
@@ -71,5 +78,6 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
 
     private companion object {
         const val POLL_INTERVAL_MS = 3_000L
+        const val BPM_LOOKAHEAD = 5
     }
 }

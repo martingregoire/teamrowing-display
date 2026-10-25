@@ -6,6 +6,7 @@ import android.util.Base64
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import de.gregoire.teamrowingdisplay.BuildConfig
+import de.gregoire.teamrowingdisplay.net.TIMEOUT_MS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,8 +30,13 @@ class SpotifyAuth(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val refreshMutex = Mutex()
 
+    /** True if logged in with all scopes the app needs; a login from an older app version may lack some. */
     val isLoggedIn: Boolean
-        get() = prefs.getString(KEY_REFRESH_TOKEN, null) != null
+        get() {
+            if (prefs.getString(KEY_REFRESH_TOKEN, null) == null) return false
+            val granted = prefs.getString(KEY_SCOPE, null).orEmpty().split(" ").toSet()
+            return granted.containsAll(SCOPES.split(" "))
+        }
 
     /** Builds the authorize URL and remembers the PKCE verifier and state until the redirect arrives. */
     fun createAuthorizeUri(): Uri {
@@ -106,6 +112,8 @@ class SpotifyAuth(context: Context) {
         }
         val connection = URL(TOKEN_URL).openConnection() as HttpURLConnection
         try {
+            connection.connectTimeout = TIMEOUT_MS
+            connection.readTimeout = TIMEOUT_MS
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
@@ -126,6 +134,8 @@ class SpotifyAuth(context: Context) {
                 // Spotify may rotate the refresh token; keep the old one if none is returned.
                 json.optString("refresh_token").takeIf { it.isNotEmpty() }
                     ?.let { putString(KEY_REFRESH_TOKEN, it) }
+                json.optString("scope").takeIf { it.isNotEmpty() }
+                    ?.let { putString(KEY_SCOPE, it) }
             }
         } finally {
             connection.disconnect()
@@ -149,12 +159,14 @@ class SpotifyAuth(context: Context) {
         const val KEY_ACCESS_TOKEN = "access_token"
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_EXPIRES_AT = "expires_at"
+        const val KEY_SCOPE = "scope"
         const val KEY_CODE_VERIFIER = "code_verifier"
         const val KEY_STATE = "state"
 
         const val AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
         const val TOKEN_URL = "https://accounts.spotify.com/api/token"
-        const val SCOPES = "user-read-playback-state user-read-currently-playing"
+        const val SCOPES = "user-read-playback-state user-read-currently-playing " +
+            "playlist-read-private playlist-read-collaborative"
         const val EXPIRY_MARGIN_MS = 60_000L
     }
 }

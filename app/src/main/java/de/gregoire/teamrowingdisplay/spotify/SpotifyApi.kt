@@ -1,23 +1,36 @@
 package de.gregoire.teamrowingdisplay.spotify
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import de.gregoire.teamrowingdisplay.net.httpGet
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
 
 data class Track(
     val uri: String,
     val title: String,
     val artists: String,
     val durationMs: Long,
-)
+    val isrc: String? = null,
+) {
+    /** The Spotify track ID, or null for local files and podcast episodes. */
+    val id: String?
+        get() = uri.removePrefix(TRACK_URI_PREFIX).takeIf { uri.startsWith(TRACK_URI_PREFIX) }
+
+    private companion object {
+        const val TRACK_URI_PREFIX = "spotify:track:"
+    }
+}
 
 data class PlaybackQueue(
     val currentlyPlaying: Track?,
     val upcoming: List<Track>,
+)
+
+data class Playlist(
+    val id: String,
+    val name: String,
+    val trackCount: Int,
 )
 
 class SpotifyApiException(
@@ -30,6 +43,8 @@ class SpotifyApiException(
 /** Read-only access to the Spotify Web API for the logged-in user. */
 class SpotifyApi(private val auth: SpotifyAuth) {
 
+    private var userId: String? = null
+
     /** The current track and the upcoming tracks, on whichever device is playing. */
     suspend fun getQueue(): PlaybackQueue {
         val json = get("/me/player/queue") ?: return PlaybackQueue(null, emptyList())
@@ -39,59 +54,80 @@ class SpotifyApi(private val auth: SpotifyAuth) {
         )
     }
 
-    /** GET request returning the JSON body, or null for 204 No Content. Retries once with a fresh token on 401. */
-    private suspend fun get(path: String): JSONObject? {
-        var response = request(path, auth.accessToken())
+    /** The user's own and collaborative playlists. Spotify only returns the tracks of those. */
+    suspend fun getPlaylists(): List<Playlist> {
+        val me = userId ?: requireNotNull(get("/me")).getString("id").also { userId = it }
+        return getAllPages("/me/playlists?limit=50")
+            .filter { it.optJSONObject("owner")?.optString("id") == me || it.optBoolean("collaborative") }
+            .map {
+                Playlist(
+                    id = it.getString("id"),
+                    name = it.getString("name"),
+                    trackCount = it.optJSONObject("items")?.optInt("total") ?: 0,
+                )
+            }
+    }
+
+    suspend fun getPlaylistTracks(playlistId: String): List<Track> =
+        getAllPages("/playlists/$playlistId/items?limit=50&additional_types=track")
+            .mapNotNull { it.optJSONObject("item")?.toTrack() }
+
+    /** Follows the `next` links of a paged response and returns the items of all pages. */
+    private suspend fun getAllPages(path: String): List<JSONObject> {
+        val items = mutableListOf<JSONObject>()
+        var next: String? = path
+        while (next != null) {
+            val page = get(next) ?: break
+            items += page.optJSONArray("items")?.objects().orEmpty()
+            next = if (page.isNull("next")) null else page.getString("next")
+        }
+        return items
+    }
+
+    /**
+     * GET request for a path or a full URL, returning the JSON body, or null for 204 No Content.
+     * Retries once with a fresh token on 401.
+     */
+    private suspend fun get(pathOrUrl: String): JSONObject? {
+        val url = if (pathOrUrl.startsWith("https://")) pathOrUrl else BASE_URL + pathOrUrl
+        var response = httpGet(url, authorization(auth.accessToken()))
         if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED) {
-            response = request(path, auth.accessToken(forceRefresh = true))
+            response = httpGet(url, authorization(auth.accessToken(forceRefresh = true)))
         }
         return when (response.status) {
             HttpURLConnection.HTTP_OK -> JSONObject(response.body)
             HttpURLConnection.HTTP_NO_CONTENT -> null
             else -> throw SpotifyApiException(
                 response.status,
-                "Spotify API $path failed (${response.status}): ${response.body}",
+                "Spotify API $pathOrUrl failed (${response.status}): ${response.body}",
                 response.retryAfterSeconds,
             )
         }
     }
 
-    private suspend fun request(path: String, accessToken: String): Response = withContext(Dispatchers.IO) {
-        val connection = URL(BASE_URL + path).openConnection() as HttpURLConnection
-        try {
-            connection.setRequestProperty("Authorization", "Bearer $accessToken")
-            val status = connection.responseCode
-            val stream = if (status < 400) connection.inputStream else connection.errorStream
-            Response(
-                status = status,
-                body = stream?.bufferedReader()?.use { it.readText() }.orEmpty(),
-                retryAfterSeconds = connection.getHeaderField("Retry-After")?.toLongOrNull(),
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private class Response(val status: Int, val body: String, val retryAfterSeconds: Long?)
+    private fun authorization(accessToken: String) = mapOf("Authorization" to "Bearer $accessToken")
 
     private companion object {
         const val BASE_URL = "https://api.spotify.com/v1"
     }
 }
 
-private fun JSONArray.toTracks(): List<Track> =
-    (0 until length()).mapNotNull { optJSONObject(it)?.toTrack() }
+private fun JSONArray.objects(): List<JSONObject> =
+    (0 until length()).mapNotNull { optJSONObject(it) }
+
+private fun JSONArray.toTracks(): List<Track> = objects().map { it.toTrack() }
 
 /** Maps a track object, or a podcast episode object (with the show name in place of the artists). */
 private fun JSONObject.toTrack(): Track {
     val artists = optJSONArray("artists")
-        ?.let { array -> (0 until array.length()).map { array.getJSONObject(it).getString("name") } }
-        ?.joinToString(", ")
+        ?.objects()
+        ?.joinToString(", ") { it.getString("name") }
         ?: optJSONObject("show")?.optString("name").orEmpty()
     return Track(
         uri = getString("uri"),
         title = getString("name"),
         artists = artists,
         durationMs = optLong("duration_ms"),
+        isrc = optJSONObject("external_ids")?.optString("isrc")?.takeIf { it.isNotEmpty() },
     )
 }

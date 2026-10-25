@@ -6,4 +6,23 @@
     <string name="now_playing">Now playing</string>
     <string name="up_next">Up next</string>
     <string name="nothing_playing">Nothing is playing</string>
+    <string name="back">Back</string>
+
+    <string name="prepare_sessions">Prepare sessions</string>
+    <string name="sessions_title">Sessions</string>
+    <string name="sessions_hint">Each playlist is one training session. Only your own and collaborative playlists are listed.</string>
+    <string name="no_playlists">No playlists found.</string>
+    <plurals name="track_count">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+
+    <string name="bpm">BPM</string>
+    <string name="looking_up_bpm">Looking up BPM…</string>
+    <string name="bpm_lookup_incomplete">Some BPM lookups failed. Open the playlist again in a minute to retry.</string>
+    <string name="bpm_not_found">not found</string>
+    <string name="bpm_edited">edited</string>
+    <string name="bpm_edit_hint">Leave empty to use the detected value.</string>
+    <string name="reset">Reset</string>
+    <string name="no_tempo">No tempo</string>
 </resources>
