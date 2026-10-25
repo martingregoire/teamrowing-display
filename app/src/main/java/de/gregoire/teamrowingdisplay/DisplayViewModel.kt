@@ -100,7 +100,10 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
 
                 val now = SystemClock.elapsedRealtime()
                 if (track != null && (trackChanged || now - queueFetchedAt >= QUEUE_REFRESH_MS)) {
-                    state = state.copy(upcoming = api.getQueue().upcoming)
+                    // Fetch first: state.copy(upcoming = api.getQueue().upcoming) would copy the state from
+                    // before the request and undo changes made meanwhile, such as a logout
+                    val upcoming = api.getQueue().upcoming
+                    state = state.copy(upcoming = upcoming)
                     queueFetchedAt = now
                 }
 
