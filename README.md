@@ -133,3 +133,7 @@ Android requires release APKs to be signed, and updates must be signed with the 
 
 For an update, increase `versionCode` (and `versionName`) in `app/build.gradle.kts` before
 building.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
