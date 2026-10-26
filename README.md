@@ -7,6 +7,9 @@ playback progress.
 The trainer plays the music with Spotify on their phone. The tablet only displays what is playing,
 reading it from the Spotify Web API with the same Spotify account.
 
+It's the counterpart of [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote),
+which the trainer uses on the phone to control Spotify and correct the tempo of the tracks.
+
 ## Features
 
 - **Display:** large tempo, title and artist of the current track, progress bar with position and
@@ -47,16 +50,28 @@ restore the other's data.
 
 ## Requirements
 
-- A Spotify Premium account, and a Spotify app registered in the
-  [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) (Web API, redirect URI
-  `teamrowing-display://callback`). In Development Mode, up to 5 Spotify users can be added there.
-- An Android tablet with Android 8.0 (API 26) or newer, with Bluetooth for the sync with the
-  remote app.
+- A Spotify Premium account, and the Spotify app on the trainer's phone to play the music. The
+  tablet logs in with the same Spotify account.
+- An Android tablet with Android 8.0 (API 26) or newer.
+- The app isn't published: whoever builds it (see [Development setup](#development-setup)) must
+  add the trainer's Spotify account to their Spotify app in the Developer Dashboard. In
+  Development Mode, up to 5 Spotify users can be added there.
+- Optional: [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the phone,
+  to correct tempos there and to show track changes instantly. The tablet needs Bluetooth for
+  this. Without it, the display polls Spotify for the playback state.
+
+## Setup
+
 - Turn off Spotify's *Autoplay* on the phone that plays the music (Settings → Playback), so no
   unrelated music plays after a session.
+- For the remote app, pair the tablet and the phone once, as described in
+  [Bluetooth sync](#bluetooth-sync).
 
 ## Development setup
 
+- A Spotify app registered in the
+  [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) (Web API, redirect URI
+  `teamrowing-display://callback`), with each trainer's Spotify account added as a user.
 - [mise](https://mise.jdx.dev) provides the JDK (`mise.toml`) and puts the Android SDK tools on the
   `PATH`. Run `mise install` once in the project directory.
 - [Android Studio](https://developer.android.com/studio) installs the Android SDK to `~/Android/Sdk`
