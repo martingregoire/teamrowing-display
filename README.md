@@ -10,6 +10,8 @@ reading it from the Spotify Web API with the same Spotify account.
 It's the counterpart of [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote),
 which the trainer uses on the phone to control Spotify and correct the tempo of the tracks.
 
+![The display app showing the current track with its tempo, the progress and the next track](docs/screenshot.png)
+
 ## Features
 
 - **Display:** large tempo, title and artist of the current track, progress bar with position and
