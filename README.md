@@ -131,8 +131,36 @@ Android requires release APKs to be signed, and updates must be signed with the 
    or by copying the APK to the tablet and opening it there, allowing the file manager to install
    unknown apps when asked.
 
-For an update, increase `versionCode` (and `versionName`) in `app/build.gradle.kts` before
-building.
+Build updates from a release tag (see [Releasing](#releasing)), whose version Android accepts as
+newer than the installed one.
+
+## Releasing
+
+The changes of each version are listed in [CHANGELOG.md](CHANGELOG.md). Releases are git tags
+like `v1.2.3`, from which Gradle takes the app's version: `versionName` is the tag (with the number
+of commits since then and the commit for builds after it, e.g. `1.2.3-4-gabc1234`, and `-dirty`
+with uncommitted changes), `versionCode` is `major * 10000 + minor * 100 + patch`. Without a tag,
+the version is `0.0.0`.
+
+Versions follow [Semantic Versioning](https://semver.org): the major version increases when the
+Bluetooth protocol or the BPM entry format changes so that the other app has to be updated too,
+the minor version with new features, and the patch version with fixes. The changelog notes which
+version of [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) a version
+needs.
+
+1. Note each change under `## [Unreleased]` in `CHANGELOG.md`, in the same pull request.
+2. For a release, rename that section to the version and date, e.g. `## [1.2.0] - 2026-11-02`, add
+   a new empty `## [Unreleased]` above it, and update the links at the end of the file.
+3. Once that's merged, tag the commit on `main` and push the tag:
+
+   ```sh
+   git tag v1.2.0
+   git push origin v1.2.0
+   ```
+
+The [release workflow](.github/workflows/release.yml) then creates a GitHub release with the
+version's changelog section as release notes. No APK is attached: it would only log in with the
+Spotify app it was built for (see [Requirements](#requirements)), so everyone builds their own.
 
 ## License
 
