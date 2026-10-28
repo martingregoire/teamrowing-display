@@ -7,6 +7,11 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-28
+
+It works with teamrowing-remote 1.0.0 and later. The next track without internet access on the tablet
+needs both apps in version 1.1.0.
+
 ### Added
 
 - The next track works without internet access on the tablet: the remote app sends Spotify's
@@ -36,5 +41,6 @@ The first version. It works with teamrowing-remote 1.0.0.
   and seeking from the remote app's playback updates.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
-[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/martingregoire/teamrowing-display/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/martingregoire/teamrowing-display/releases/tag/v1.0.0
