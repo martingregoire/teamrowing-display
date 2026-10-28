@@ -140,6 +140,9 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
                 val tracks = listOfNotNull(track) + state.upcoming.filter(state::isInSession).take(BPM_LOOKAHEAD)
                 viewModelScope.launch { bpmRepository.lookUpMissing(tracks) }
 
+                // E.g. a network error from before the remote app connected and took over
+                if (state.error != null) state = state.copy(error = null)
+
                 when {
                     queueStale -> STALE_QUEUE_RETRY_MS
                     remoteConnected -> POLL_INTERVAL_MS
