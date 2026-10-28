@@ -7,6 +7,10 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-28
+
+It works with teamrowing-remote 1.0.0 and later.
+
 ### Changed
 
 - An own launcher icon: the tempo above a progress bar, in place of the default Android icon.
@@ -45,6 +49,7 @@ The first version. It works with teamrowing-remote 1.0.0.
   and seeking from the remote app's playback updates.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
-[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/martingregoire/teamrowing-display/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/martingregoire/teamrowing-display/releases/tag/v1.0.0
