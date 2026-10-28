@@ -7,6 +7,12 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Added
+
+- The next track works without internet access on the tablet: the remote app sends Spotify's
+  queue over Bluetooth, and the display then makes no Spotify requests. With an older remote
+  app, the display fetches the queue itself as before.
+
 ### Changed
 
 - The app's version comes from the release tag, and builds after a release show the number of

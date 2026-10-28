@@ -26,8 +26,8 @@ which the trainer uses on the phone to control Spotify and correct the tempo of 
 - **Sync with the remote app:** the BPM values are synced over Bluetooth with
   [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the trainer's phone,
   which shows each track's tempo and can correct it too. While it's connected, it also reports track changes, pause and
-  seeking instantly, so the display doesn't have to wait for its next poll. The status is shown
-  with the controls.
+  seeking instantly, so the display doesn't have to wait for its next poll, and sends Spotify's
+  queue, so the tablet needs no internet access. The status is shown with the controls.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
 BPM values and corrections are stored per Spotify track, so a corrected song keeps its tempo in
@@ -42,9 +42,12 @@ restore the other's data.
   both apps send all their BPM entries, then each change as it happens (lookups and corrections on
   the tablet, corrections on the phone), one JSON message per line.
 - The remote app also sends its playback state (track, position, play/pause, playlist) on every
-  change. While it's connected, the display app takes the current track from it and only fetches
-  the queue from the Web API, retrying shortly while Spotify still reports the previous track's
-  queue. Without the remote app, it polls the playback state as before.
+  change, and Spotify's queue (fetched from the Web API) when the track changes and every 15
+  seconds, retrying shortly while Spotify still reports the previous track's queue. It leaves out
+  the autoplay tracks after the session playlist. While it's connected, the display app takes the
+  current and the next track from it and makes no Spotify requests, so it works offline, e.g. in a
+  club without WiFi. With a remote app that doesn't send the queue, it fetches the queue itself.
+  Without the remote app, it polls the playback state as before.
 - Entries are merged per track: a detected BPM is taken from whichever device has one, and the
   trainer's correction and "No tempo" from the more recently edited one.
 - The protocol and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept
@@ -60,7 +63,8 @@ restore the other's data.
   Development Mode, up to 5 Spotify users can be added there.
 - Optional: [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the phone,
   to correct tempos there and to show track changes instantly. The tablet needs Bluetooth for
-  this. Without it, the display polls Spotify for the playback state.
+  this, but no internet access during the session (only for the login and the BPM lookups while
+  preparing). Without it, the display polls Spotify for the playback state.
 
 ## Setup
 
