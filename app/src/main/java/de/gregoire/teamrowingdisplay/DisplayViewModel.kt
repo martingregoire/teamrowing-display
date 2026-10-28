@@ -14,6 +14,7 @@ import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.SpotifyApiException
 import de.gregoire.teamrowingdisplay.spotify.Track
 import de.gregoire.teamrowingdisplay.sync.PlaybackUpdate
+import de.gregoire.teamrowingdisplay.sync.QueueUpdate
 import de.gregoire.teamrowingdisplay.sync.SyncStatus
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filterNotNull
@@ -60,8 +61,13 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             app.syncServer.remotePlayback.filterNotNull().collect { update ->
                 showPlayback(update.toPlaybackState())
+                app.syncServer.remoteQueue.value?.let(::showQueue)
                 wakeUp.trySend(Unit)
             }
+        }
+        // The remote app also sends Spotify's queue, so the next track is shown without internet access
+        viewModelScope.launch {
+            app.syncServer.remoteQueue.filterNotNull().collect(::showQueue)
         }
     }
 
@@ -92,7 +98,8 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
      * Polls until the calling coroutine is cancelled, i.e. while the screen is visible. While the remote
      * app is connected, it reports playback changes instantly over Bluetooth, and only the queue is
      * fetched; otherwise the playback state is polled too. The queue is fetched when the track changes,
-     * and every [QUEUE_REFRESH_MS] to catch manual changes.
+     * and every [QUEUE_REFRESH_MS] to catch manual changes. If the remote app sends the queue too,
+     * nothing is fetched from Spotify, so the display works without internet access.
      */
     suspend fun pollPlayback() {
         var queueFetchedAt = 0L
@@ -101,15 +108,22 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
         while (true) {
             val delayMs = try {
                 val remoteConnected = app.syncServer.remotePlayback.value != null
+                val remoteSendsQueue = app.syncServer.remoteQueue.value != null
                 val playback = if (remoteConnected) state.playback else api.getPlaybackState().also(::showPlayback)
                 val track = playback?.track
 
-                updateSessionPlaylist(playback?.contextUri)
-                state = state.copy(sessionTrackUris = sessionPlaylist?.trackUris)
+                // The remote app's queue is without autoplay tracks already
+                if (!remoteSendsQueue) {
+                    updateSessionPlaylist(playback?.contextUri)
+                    state = state.copy(sessionTrackUris = sessionPlaylist?.trackUris)
+                }
 
                 val now = SystemClock.elapsedRealtime()
                 var queueStale = false
-                if (track != null && (track.uri != queueTrackUri || now - queueFetchedAt >= QUEUE_REFRESH_MS)) {
+                if (
+                    !remoteSendsQueue && track != null &&
+                    (track.uri != queueTrackUri || now - queueFetchedAt >= QUEUE_REFRESH_MS)
+                ) {
                     val queue = api.getQueue()
                     // Right after a track change, Spotify may still report the queue of the previous track
                     if (queue.currentlyPlaying?.uri == track.uri || ++staleQueueAttempts > MAX_STALE_QUEUE_ATTEMPTS) {
@@ -161,6 +175,12 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
             },
             error = null,
         )
+    }
+
+    /** Shows the remote app's queue, once the track it follows is shown. */
+    private fun showQueue(queue: QueueUpdate) {
+        if (queue.trackUri != state.playback?.track?.uri) return
+        state = state.copy(upcoming = queue.upcoming, sessionTrackUris = null)
     }
 
     /** The remote app's playback state; the track's ISRC, used for BPM lookups, comes from the queue. */
