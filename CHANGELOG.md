@@ -7,6 +7,10 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Changed
+
+- An own launcher icon: the tempo above a progress bar, in place of the default Android icon.
+
 ## [1.1.0] - 2026-10-28
 
 It works with teamrowing-remote 1.0.0 and later. The next track without internet access on the tablet
