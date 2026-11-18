@@ -10,11 +10,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.gregoire.teamrowingdisplay.bpm.BpmEntry
+import de.gregoire.teamrowingdisplay.session.SessionTimeline
+import de.gregoire.teamrowingdisplay.session.sessionTimeline
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.SpotifyApiException
 import de.gregoire.teamrowingdisplay.spotify.Track
 import de.gregoire.teamrowingdisplay.sync.PlaybackUpdate
 import de.gregoire.teamrowingdisplay.sync.QueueUpdate
+import de.gregoire.teamrowingdisplay.sync.SessionUpdate
 import de.gregoire.teamrowingdisplay.sync.SyncStatus
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filterNotNull
@@ -31,12 +34,25 @@ data class DisplayState(
     /** Tracks of the session playlist, or null if not playing one of the user's playlists. */
     val sessionTrackUris: Set<String>? = null,
     val error: String? = null,
+    /** The session's tracks from the remote app, or null if none is connected or it doesn't send them. */
+    val session: SessionUpdate? = null,
 ) {
     /** The next track, unless the playlist ends and Spotify continues with autoplay tracks. */
     val next: Track?
         get() = upcoming.firstOrNull()?.takeIf { isInSession(it) }
 
     fun isInSession(track: Track): Boolean = sessionTrackUris == null || track.uri in sessionTrackUris
+
+    /**
+     * The session graph's timeline, or null if there is no graph to show: only while the remote app is
+     * connected and plays the session it sent, and not during a "No tempo" track.
+     */
+    fun sessionTimeline(entries: Map<String, BpmEntry>): SessionTimeline? {
+        val session = session ?: return null
+        val playback = playback?.takeIf { it.isPlaying && it.contextUri == session.playlistUri } ?: return null
+        val track = playback.track ?: return null
+        return sessionTimeline(session, entries, track.uri, upcoming.size)
+    }
 }
 
 /** The playlist being played as a training session, with the URIs of its tracks. */
@@ -68,6 +84,10 @@ class DisplayViewModel(application: Application) : AndroidViewModel(application)
         // The remote app also sends Spotify's queue, so the next track is shown without internet access
         viewModelScope.launch {
             app.syncServer.remoteQueue.filterNotNull().collect(::showQueue)
+        }
+        // The remote app also sends the session's tracks for the session graph
+        viewModelScope.launch {
+            app.syncServer.remoteSession.collect { state = state.copy(session = it) }
         }
     }
 

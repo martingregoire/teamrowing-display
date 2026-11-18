@@ -52,5 +52,13 @@
     <string name="color_scheme_light">Light</string>
     <string name="color_scheme_high_contrast">Max. contrast</string>
     <string name="accent_color">Accent color</string>
+    <string name="settings_section_graph">Session graph</string>
+    <string name="alternate_graph">Alternate the title with the session graph</string>
+    <string name="alternate_graph_hint">While the remote app is connected and plays the session</string>
+    <string name="main_seconds">Title and artist</string>
+    <string name="graph_seconds">Session graph</string>
+    <string name="seconds">%d s</string>
+    <string name="decrease">Less</string>
+    <string name="increase">More</string>
     <string name="reset_display_settings">Reset to defaults</string>
 </resources>

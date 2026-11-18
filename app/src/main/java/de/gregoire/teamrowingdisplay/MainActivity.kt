@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,11 +86,13 @@ class MainActivity : ComponentActivity() {
                     val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
                     val displaySettings by viewModel.displaySettings.collectAsStateWithLifecycle()
                     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
+                    val timeline = remember(state, bpmEntries) { state.sessionTimeline(bpmEntries) }
                     when (screen) {
                         Screen.DISPLAY -> DisplayScreen(
                             playback = state.playback,
                             next = state.next,
                             bpmEntries = bpmEntries,
+                            timeline = timeline,
                             settings = displaySettings,
                             syncStatus = syncStatus,
                             error = state.error,
@@ -108,6 +111,7 @@ class MainActivity : ComponentActivity() {
                             playback = state.playback,
                             next = state.next,
                             bpmEntries = bpmEntries,
+                            timeline = timeline,
                             onChange = viewModel::updateDisplaySettings,
                             onBack = { screen = Screen.DISPLAY },
                             modifier = Modifier.padding(innerPadding),

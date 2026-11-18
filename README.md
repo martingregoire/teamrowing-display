@@ -20,14 +20,24 @@ which the trainer uses on the phone to control Spotify and correct the tempo of 
   of its tracks ([ReccoBeats](https://reccobeats.com) by Spotify ID, [Deezer](https://www.deezer.com)
   by ISRC as fallback), and the trainer corrects them to the rowing tempo with ÷2, ×2, −1 and +1,
   types a value, or marks a track as "No tempo", e.g. for stretching.
-- **Display settings:** shown elements, tempo size, current/next split, color scheme and accent
-  color, with a live preview.
+- **Session graph:** optionally, the current track's title and artist alternate with a graph of
+  the session (20 seconds and 10 seconds by default), while the tempo, the progress and the next
+  track stay: the tracks as bars as long as they last and as high as their tempo, in the accent
+  color, with a line where the session stands. "No tempo" tracks are stretching, which isn't rowing time, so they are left out,
+  and no graph is shown while one plays; tracks without a rowing tempo yet keep their time without
+  a bar. Each track starts with its title, which is also kept for its last 10 seconds, and
+  tapping the screen switches back. The graph needs the remote app, which sends the session's
+  tracks, so it's only shown while it's connected and plays that session, and not while paused.
+- **Display settings:** shown elements, tempo size, current/next split, color scheme, accent
+  color and the session graph's alternation (off by default) with its durations, with a live
+  preview, which uses a made-up session for the graph.
 - **Tablet mode:** the screen stays on and the system bars are hidden while the app is open.
 - **Sync with the remote app:** the BPM values are synced over Bluetooth with
   [teamrowing-remote](https://github.com/martingregoire/teamrowing-remote) on the trainer's phone,
   which shows each track's tempo and can correct it too. While it's connected, it also reports track changes, pause and
   seeking instantly, so the display doesn't have to wait for its next poll, and sends Spotify's
-  queue, so the tablet needs no internet access. The status is shown with the controls.
+  queue, so the tablet needs no internet access, and the session's tracks for the session graph.
+  The status is shown with the controls.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
 BPM values and corrections are stored per Spotify track, so a corrected song keeps its tempo in
@@ -48,6 +58,10 @@ restore the other's data.
   current and the next track from it and makes no Spotify requests, so it works offline, e.g. in a
   club without WiFi. With a remote app that doesn't send the queue, it fetches the queue itself.
   Without the remote app, it polls the playback state as before.
+- The remote app sends the tracks of the selected session in their order (URI and length) on
+  connecting, and whenever another session is selected or the session is changed. The display
+  app shows its session graph only while this session is played, with the tempos from its own
+  entries, so a correction shows right away.
 - Entries are merged per track: a detected BPM is taken from whichever device has one, and the
   trainer's correction and "No tempo" from the more recently edited one.
 - The protocol and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept

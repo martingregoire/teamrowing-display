@@ -1,6 +1,8 @@
 package de.gregoire.teamrowingdisplay
 
 import android.os.SystemClock
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,20 +43,24 @@ import androidx.compose.ui.unit.sp
 import de.gregoire.teamrowingdisplay.bpm.BpmEntry
 import de.gregoire.teamrowingdisplay.bpm.BpmSource
 import de.gregoire.teamrowingdisplay.bpm.formatBpm
+import de.gregoire.teamrowingdisplay.session.GraphTrack
+import de.gregoire.teamrowingdisplay.session.SessionTimeline
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.Track
 import de.gregoire.teamrowingdisplay.sync.SyncStatus
 import kotlinx.coroutines.delay
 
 /**
- * Full-screen display for the team: the current track with tempo and progress, and the next track.
- * Tapping the screen shows the controls for a few seconds.
+ * Full-screen display for the team: the current track with tempo and progress, and the next track,
+ * alternating with the session graph if it's turned on. Tapping the screen shows the controls for a few
+ * seconds, and switches back from the graph.
  */
 @Composable
 fun DisplayScreen(
     playback: PlaybackState?,
     next: Track?,
     bpmEntries: Map<String, BpmEntry>,
+    timeline: SessionTimeline?,
     settings: DisplaySettings,
     syncStatus: SyncStatus,
     error: String?,
@@ -63,6 +70,7 @@ fun DisplayScreen(
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     var controlsVisible by remember { mutableStateOf(false) }
+    var taps by remember { mutableIntStateOf(0) }
     LaunchedEffect(controlsVisible) {
         if (controlsVisible) {
             delay(CONTROLS_VISIBLE_MS)
@@ -75,10 +83,13 @@ fun DisplayScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .clickable(interactionSource = null, indication = null) { controlsVisible = !controlsVisible }
+            .clickable(interactionSource = null, indication = null) {
+                controlsVisible = !controlsVisible
+                taps++
+            }
             .padding(contentPadding)
     ) {
-        DisplayContent(playback, next, bpmEntries, settings)
+        AlternatingDisplay(playback, next, bpmEntries, timeline, settings, restartKey = taps)
 
         Box(modifier = Modifier.matchParentSize().padding(DISPLAY_PADDING)) {
             if (error != null) {
@@ -121,7 +132,10 @@ private val SyncStatus.label: Int
         SyncStatus.CONNECTED -> R.string.sync_connected
     }
 
-/** The display itself, without controls; also used as the live preview in the settings. */
+/**
+ * The display itself, without controls; also used as the live preview in the settings. With [showGraph],
+ * the current track's title and artist fade over to the session [graph].
+ */
 @Composable
 fun DisplayContent(
     playback: PlaybackState?,
@@ -129,6 +143,8 @@ fun DisplayContent(
     bpmEntries: Map<String, BpmEntry>,
     settings: DisplaySettings,
     modifier: Modifier = Modifier,
+    graph: (@Composable (Modifier) -> Unit)? = null,
+    showGraph: Boolean = false,
 ) {
     val colors = settings.colors()
     Box(
@@ -156,6 +172,8 @@ fun DisplayContent(
                 colors = colors,
                 large = true,
                 modifier = Modifier.weight(settings.split.currentWeight),
+                graph = graph,
+                showGraph = showGraph,
             )
             PlaybackProgress(playback, current, settings, colors, modifier = Modifier.padding(vertical = 24.dp))
             if (settings.showNext && next != null) {
@@ -176,7 +194,10 @@ fun DisplayContent(
     }
 }
 
-/** Tempo on the left (left out for "No tempo" tracks), title and artist on the right, scaled to fit. */
+/**
+ * Tempo on the left (left out for "No tempo" tracks), title and artist on the right, scaled to fit.
+ * With [showGraph], the title and artist fade over to the [graph].
+ */
 @Composable
 private fun TrackRow(
     track: Track,
@@ -185,6 +206,8 @@ private fun TrackRow(
     colors: DisplayColors,
     large: Boolean,
     modifier: Modifier = Modifier,
+    graph: (@Composable (Modifier) -> Unit)? = null,
+    showGraph: Boolean = false,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -218,27 +241,46 @@ private fun TrackRow(
                 }
             }
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicText(
-                text = track.title,
-                style = TextStyle(color = colors.primary, fontWeight = FontWeight.SemiBold),
-                maxLines = 2,
+        Crossfade(
+            targetState = showGraph && graph != null,
+            animationSpec = tween(GRAPH_FADE_MS),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            label = "details",
+        ) { showsGraph ->
+            if (showsGraph && graph != null) {
+                graph(Modifier.fillMaxSize())
+            } else {
+                // Centered in the full height, so it doesn't move while fading
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                    TrackDetails(track, settings, colors, large)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackDetails(track: Track, settings: DisplaySettings, colors: DisplayColors, large: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BasicText(
+            text = track.title,
+            style = TextStyle(color = colors.primary, fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = if (large) 88.sp else 56.sp),
+        )
+        val details = buildList {
+            if (settings.showArtist) add(track.artists)
+            if (!large && settings.showNextDuration) add(formatDuration(track.durationMs))
+        }
+        if (details.isNotEmpty()) {
+            Text(
+                details.joinToString(" · "),
+                color = colors.secondary,
+                fontSize = if (large) 40.sp else 30.sp,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = if (large) 88.sp else 56.sp),
             )
-            val details = buildList {
-                if (settings.showArtist) add(track.artists)
-                if (!large && settings.showNextDuration) add(formatDuration(track.durationMs))
-            }
-            if (details.isNotEmpty()) {
-                Text(
-                    details.joinToString(" · "),
-                    color = colors.secondary,
-                    fontSize = if (large) 40.sp else 30.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }
@@ -294,7 +336,8 @@ private fun formatDuration(ms: Long): String {
 }
 
 private val DISPLAY_PADDING = PaddingValues(horizontal = 48.dp, vertical = 32.dp)
-private const val PROGRESS_TICK_MS = 250L
+internal const val PROGRESS_TICK_MS = 250L
+private const val GRAPH_FADE_MS = 600
 private const val CONTROLS_VISIBLE_MS = 5_000L
 
 /** Sample data for previews, and for the settings preview when nothing is playing. */
@@ -310,6 +353,20 @@ object SampleDisplayData {
         "spotify:track:sample1" to BpmEntry(173.8, BpmSource.RECCOBEATS, manualBpm = 22.0),
         "spotify:track:sample2" to BpmEntry(92.4, BpmSource.RECCOBEATS, manualBpm = 23.0),
     )
+
+    /** A made-up session of about 45 minutes, at the sample track, which is the fifth. */
+    val timeline: SessionTimeline = run {
+        val tracks = listOf(
+            200_000L to 20.0, 230_000L to 21.0, 215_000L to 22.0, 240_000L to 22.0, 255_000L to 22.0,
+            210_000L to 25.0, 225_000L to 22.0, 190_000L to null, 245_000L to 26.0, 220_000L to 23.0,
+            235_000L to 27.0, 205_000L to 22.0, 230_000L to 21.0,
+        )
+        var startMs = 0L
+        SessionTimeline(
+            tracks = tracks.map { (durationMs, tempo) -> GraphTrack(startMs, durationMs, tempo).also { startMs += durationMs } },
+            currentIndex = 4,
+        )
+    }
 }
 
 @Preview(widthDp = 1280, heightDp = 800)
