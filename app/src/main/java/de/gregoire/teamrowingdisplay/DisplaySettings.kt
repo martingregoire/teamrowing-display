@@ -57,7 +57,17 @@ data class DisplaySettings(
     val split: TrackSplit = TrackSplit.SPLIT_60_40,
     val colorScheme: DisplayColorScheme = DisplayColorScheme.DARK,
     val accent: AccentColor = AccentColor.AMBER,
+    /** Alternates the current track with the session graph while the remote app plays a session. */
+    val alternateGraph: Boolean = false,
+    val mainSeconds: Int = 20,
+    val graphSeconds: Int = 10,
 )
+
+/** The allowed durations of the alternation, in seconds, with the steps of their steppers. */
+val MAIN_SECONDS_RANGE = 5..120
+const val MAIN_SECONDS_STEP = 5
+val GRAPH_SECONDS_RANGE = 3..30
+const val GRAPH_SECONDS_STEP = 1
 
 class DisplayColors(
     val background: Color,
@@ -126,6 +136,9 @@ class DisplaySettingsStore(context: Context) {
             split = enumPref(KEY_SPLIT, defaults.split),
             colorScheme = enumPref(KEY_COLOR_SCHEME, defaults.colorScheme),
             accent = enumPref(KEY_ACCENT, defaults.accent),
+            alternateGraph = prefs.getBoolean(KEY_ALTERNATE_GRAPH, defaults.alternateGraph),
+            mainSeconds = prefs.getInt(KEY_MAIN_SECONDS, defaults.mainSeconds).coerceIn(MAIN_SECONDS_RANGE),
+            graphSeconds = prefs.getInt(KEY_GRAPH_SECONDS, defaults.graphSeconds).coerceIn(GRAPH_SECONDS_RANGE),
         )
     }
 
@@ -142,6 +155,9 @@ class DisplaySettingsStore(context: Context) {
             putString(KEY_SPLIT, settings.split.name)
             putString(KEY_COLOR_SCHEME, settings.colorScheme.name)
             putString(KEY_ACCENT, settings.accent.name)
+            putBoolean(KEY_ALTERNATE_GRAPH, settings.alternateGraph)
+            putInt(KEY_MAIN_SECONDS, settings.mainSeconds)
+            putInt(KEY_GRAPH_SECONDS, settings.graphSeconds)
         }
     }
 
@@ -162,5 +178,8 @@ class DisplaySettingsStore(context: Context) {
         const val KEY_SPLIT = "split"
         const val KEY_COLOR_SCHEME = "color_scheme"
         const val KEY_ACCENT = "accent"
+        const val KEY_ALTERNATE_GRAPH = "alternate_graph"
+        const val KEY_MAIN_SECONDS = "main_seconds"
+        const val KEY_GRAPH_SECONDS = "graph_seconds"
     }
 }

@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -34,24 +36,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.gregoire.teamrowingdisplay.bpm.BpmEntry
+import de.gregoire.teamrowingdisplay.session.SessionTimeline
 import de.gregoire.teamrowingdisplay.spotify.PlaybackState
 import de.gregoire.teamrowingdisplay.spotify.Track
 import de.gregoire.teamrowingdisplay.ui.theme.TeamrowingDisplayTheme
 
-/** Display settings on the left, a live preview of the display on the right. */
+/**
+ * Display settings on the left, a live preview of the display on the right. The preview alternates with
+ * the session graph like the display, with a made-up session unless one is playing.
+ */
 @Composable
 fun DisplaySettingsScreen(
     settings: DisplaySettings,
     playback: PlaybackState?,
     next: Track?,
     bpmEntries: Map<String, BpmEntry>,
+    timeline: SessionTimeline?,
     onChange: ((DisplaySettings) -> DisplaySettings) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -137,6 +148,32 @@ fun DisplaySettingsScreen(
             Text(stringResource(R.string.accent_color), style = MaterialTheme.typography.bodyLarge)
             AccentColorPicker(settings) { value -> onChange { it.copy(accent = value) } }
 
+            SectionTitle(stringResource(R.string.settings_section_graph))
+            SwitchRow(stringResource(R.string.alternate_graph), settings.alternateGraph) { value ->
+                onChange { it.copy(alternateGraph = value) }
+            }
+            Text(
+                stringResource(R.string.alternate_graph_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            StepperRow(
+                label = stringResource(R.string.main_seconds),
+                value = settings.mainSeconds,
+                range = MAIN_SECONDS_RANGE,
+                step = MAIN_SECONDS_STEP,
+                enabled = settings.alternateGraph,
+                onChange = { value -> onChange { it.copy(mainSeconds = value) } },
+            )
+            StepperRow(
+                label = stringResource(R.string.graph_seconds),
+                value = settings.graphSeconds,
+                range = GRAPH_SECONDS_RANGE,
+                step = GRAPH_SECONDS_STEP,
+                enabled = settings.alternateGraph,
+                onChange = { value -> onChange { it.copy(graphSeconds = value) } },
+            )
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             TextButton(onClick = { onChange { DisplaySettings() } }) {
                 Text(stringResource(R.string.reset_display_settings))
@@ -148,6 +185,7 @@ fun DisplaySettingsScreen(
             playback = if (hasPlayback) playback else SampleDisplayData.playback,
             next = if (hasPlayback) next else SampleDisplayData.next,
             bpmEntries = if (hasPlayback) bpmEntries else SampleDisplayData.bpmEntries,
+            timeline = timeline ?: SampleDisplayData.timeline,
             settings = settings,
             modifier = Modifier.weight(0.6f).align(Alignment.CenterVertically),
         )
@@ -160,6 +198,7 @@ private fun ScaledDisplayPreview(
     playback: PlaybackState?,
     next: Track?,
     bpmEntries: Map<String, BpmEntry>,
+    timeline: SessionTimeline,
     settings: DisplaySettings,
     modifier: Modifier = Modifier,
 ) {
@@ -178,11 +217,15 @@ private fun ScaledDisplayPreview(
         contentAlignment = Alignment.Center,
     ) {
         val scale = maxWidth / screenWidth
-        DisplayContent(
+        AlternatingDisplay(
             playback = playback,
             next = next,
             bpmEntries = bpmEntries,
+            timeline = timeline,
             settings = settings,
+            restartKey = 0,
+            // The sample track doesn't advance, and a live one may be paused
+            holdAtTrackEnd = false,
             modifier = Modifier
                 .requiredSize(screenWidth, screenHeight)
                 .graphicsLayer {
@@ -213,6 +256,44 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, 
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+    }
+}
+
+/** A value in seconds with − and + buttons, within [range]. */
+@Composable
+private fun StepperRow(
+    label: String,
+    value: Int,
+    range: IntRange,
+    step: Int,
+    enabled: Boolean,
+    onChange: (Int) -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            modifier = Modifier.weight(1f),
+        )
+        val decrease = stringResource(R.string.decrease)
+        OutlinedButton(
+            onClick = { onChange((value - step).coerceIn(range)) },
+            enabled = enabled && value > range.first,
+            modifier = Modifier.semantics { contentDescription = decrease },
+        ) { Text("−") }
+        Text(
+            stringResource(R.string.seconds, value),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(72.dp),
+        )
+        val increase = stringResource(R.string.increase)
+        OutlinedButton(
+            onClick = { onChange((value + step).coerceIn(range)) },
+            enabled = enabled && value < range.last,
+            modifier = Modifier.semantics { contentDescription = increase },
+        ) { Text("+") }
     }
 }
 
@@ -281,6 +362,7 @@ fun DisplaySettingsScreenPreview() {
             playback = null,
             next = null,
             bpmEntries = emptyMap(),
+            timeline = null,
             onChange = {},
             onBack = {},
         )

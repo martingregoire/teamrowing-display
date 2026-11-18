@@ -48,10 +48,17 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
     /** The queue last sent by the connected remote app, or null if none is connected or it doesn't send any. */
     val remoteQueue: StateFlow<QueueUpdate?> = _remoteQueue.asStateFlow()
 
+    private val _remoteSession = MutableStateFlow<SessionUpdate?>(null)
+
+    /** The session's tracks last sent by the connected remote app, or null if none is connected or it doesn't send any. */
+    val remoteSession: StateFlow<SessionUpdate?> = _remoteSession.asStateFlow()
+
     private val playbackPeer = object : PlaybackSyncPeer {
         override val outgoing: Flow<PlaybackUpdate> = emptyFlow()
 
         override val outgoingQueues: Flow<QueueUpdate> = emptyFlow()
+
+        override val outgoingSessions: Flow<SessionUpdate> = emptyFlow()
 
         override fun received(update: PlaybackUpdate) {
             _remotePlayback.value = update
@@ -59,6 +66,10 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
 
         override fun receivedQueue(update: QueueUpdate) {
             _remoteQueue.value = update
+        }
+
+        override fun receivedSession(update: SessionUpdate) {
+            _remoteSession.value = update
         }
     }
 
@@ -99,6 +110,7 @@ class BluetoothSyncServer(private val context: Context, private val store: BpmSy
             } finally {
                 _remotePlayback.value = null
                 _remoteQueue.value = null
+                _remoteSession.value = null
             }
         }
     }
