@@ -7,13 +7,16 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-18
+
+It works with teamrowing-remote 1.0.0 and later. The session graph needs teamrowing-remote 1.3.0.
+
 ### Added
 
 - A session graph that can alternate with the current track's title and artist: the session's
   tracks as bars of their tempo and length, with a line where the session stands. It's off by
-  default; the durations can be set in the display settings. It needs
-  the session's tracks from teamrowing-remote, so it's only shown while a version that sends them
-  is connected.
+  default; the durations can be set in the display settings. It needs the session's tracks from
+  teamrowing-remote, so it's only shown while a version that sends them is connected.
 
 ## [1.1.1] - 2026-10-28
 
@@ -57,7 +60,8 @@ The first version. It works with teamrowing-remote 1.0.0.
   and seeking from the remote app's playback updates.
 - Spotify's autoplay tracks after the end of a playlist are not shown as next track.
 
-[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/martingregoire/teamrowing-display/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/martingregoire/teamrowing-display/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/martingregoire/teamrowing-display/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/martingregoire/teamrowing-display/releases/tag/v1.0.0
